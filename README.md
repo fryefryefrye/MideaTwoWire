@@ -1,171 +1,177 @@
-# 美的两线无极性总线通信逆向项目总结
+# Reverse Engineering of the Midea Two-Wire Polarity-Free Bus Communication
 
-## 一、项目背景
+[中文版 (Chinese version)](README.zh-CN.md)
 
-美的中央空调/空气能设备的墙壁线控面板，通过一根两芯线连接室外主板。这根线同时承担供电和双向通信功能，且不分正反，属于典型的“供电+通信复用”私有总线。
+## 1. Project Background
 
-项目目标：用 ESP8266 接入这条总线，解析美的私有协议（XYE 协议族），实现状态回传。
+The wall-mounted control panel of a Midea central air conditioner connects to the outdoor unit main board through a single two-core wire. This wire carries both power supply and bidirectional communication, and is polarity-free (either wire can be swapped) — a typical private "power + communication" multiplexed bus.
 
-## 二、物理层结论
+Project goal: tap into this bus with an ESP8266, decode Midea's proprietary protocol (XYE protocol family), and report the AC status.
 
-经示波器抓包分析，最终确认总线物理层参数：
+## 2. Physical Layer Findings
 
-| 参数 | 数值 |
+Through oscilloscope capture and analysis, the physical layer parameters of the bus were finally confirmed:
+
+| Parameter | Value |
 | :--- | :--- |
-| 总线直流电压 | 约 18~20V |
-| 载波频率 | 200 kHz |
-| 载波幅度 | 约 1V 峰峰值 |
-| 调制方式 | OOK / ASK（载波有/无代表 0/1） |
-| 数据位宽 | 约 208 µs（4800bps 串口，1 bit ≈ 208µs） |
-| 总线极性 | 无极性，两条线可互换 |
+| Bus DC voltage | approx. 18–20 V |
+| Carrier frequency | 200 kHz |
+| Carrier amplitude | approx. 1 V peak-to-peak |
+| Modulation | OOK / ASK (carrier present/absent represents 0/1) |
+| Bit width | approx. 208 µs (4800 bps UART, 1 bit ≈ 208 µs) |
+| Bus polarity | None; the two wires are interchangeable |
 
-最终结论：物理层本质上是一个 4800bps 的串口（UART）信号，通过 200kHz 载波的 OOK 调制传输。
+Final conclusion: the physical layer is essentially a 4800 bps UART signal transmitted via OOK modulation on a 200 kHz carrier.
 
-## 三、硬件方案
+![alt text](img/F0001TEK.JPG)
+![alt text](img/F0005TEK.JPG)
 
-### 3.1 信号链
+## 3. Hardware Design
 
-总线（无极性）
+### 3.1 Signal Chain
+
+Polarity-free bus
+
     │
-    ├──→ 桥堆 → 电感 → DC-DC → 3.3V 供电
+    ├──→ Bridge rectifier → Inductor → DC-DC → 3.3 V power supply
     │
+    └──→ Coupling capacitor → Bias → Envelope detector → Comparator → ESP8266 GPIO
+![alt text](img/image-3.png)
+### 3.2 Final Circuit Parameters
 
-               └──→ 耦合电容 → 偏置 → 包络检波 → 比较器 → ESP8266 GPIO
+DC blocking and biasing:
 
-### 3.2 最终电路参数
-
-隔直与偏置：
-
-| 元件 | 参数 | 作用 |
+| Component | Value | Purpose |
 | :--- | :--- | :--- |
-| C1、C2 | 0.1µF / 100V 贴片 C0G | 隔断 20V 直流，只让 200kHz 载波通过 |
-| R6/R7、R4/R5 | 100kΩ + 100kΩ | 独立偏置到 1.65V，A'、B' 各一对 |
+| C1, C2 | 0.1 µF / 100 V SMD C0G | Block the 20 V DC, pass only the 200 kHz carrier |
+| R6/R7, R4/R5 | 100 kΩ + 100 kΩ | Independent bias to 1.65 V, one pair each for A' and B' |
 
-包络检波：
+Envelope detection:
 
-| 元件 | 参数 | 作用 |
+| Component | Value | Purpose |
 | :--- | :--- | :--- |
-| D3、D4 | BAT54S 肖特基 | 双路检波，应对无极性 |
-| R10 | 10kΩ | 充电限流 |
-| C3 | 470pF | 滤掉 200kHz 载波 |
-| R_discharge | 200kΩ | 电容放电通路
-![alt text](image.png)
-检波出来的信号，电平上下限分别是 1.55v 和 1.27v。选1.41v作为比较器的参考电压。
+| D3, D4 | BAT54S Schottky | Dual-channel detection, handles polarity-free input |
+| R10 | 10 kΩ | Charging current limit |
+| C3 | 470 pF | Filter out the 200 kHz carrier |
+| R_14 | 200 kΩ | Capacitor discharge path |
 
-比较器：
+![alt text](img/image.png) The detected signal swings between 1.55 V and 1.27 V. So 1.41 V was chosen as the comparator reference voltage.
 
-| 元件 | 参数 | 作用 |
+Comparator:
+
+| Component | Value | Purpose |
 | :--- | :--- | :--- |
-| U1 | LM393 | 开集电极输出，成本低 |
-| R11 | 10kΩ | 上拉到 3.3V |
-| R_上/R_下 | 4.7kΩ / 3.6kΩ | 分压出约 1.41V 参考电压 |
-![alt text](image-1.png)
-输出清晰的3.3v电平
+| U1 | LM393 | Open-collector output, low cost |
+| R11 | 10 kΩ | Pull-up to 3.3 V |
+| R_12/R_13 | 4.7 kΩ / 3.6 kΩ | Voltage divider producing approx. 1.41 V reference |
 
+![alt text](img/image-1.png) The comparator outputs a clean 3.3 V-level signal.
 
-供电通路：
+Power supply path:
 
-| 元件 | 参数 | 作用 |
+| Component | Value | Purpose |
 | :--- | :--- | :--- |
-| 桥堆 | ABS210 | 无极性整流 |
-| 电感 | 470µH | 隔离 200kHz 通信信号 |
-| DC-DC | 20V → 3.3V | 给 ESP8266 供电 |
+| Bridge rectifier | ABS210 | Polarity-free rectification |
+| Inductor | 470 µH | Isolates the 200 kHz communication signal |
+| DC-DC | 20 V → 3.3 V | Powers the ESP8266 |
 
-## 四、协议层结论：XYE 协议族
+![alt text](img/image-2.png)
 
-解调后的基带信号就是一个 4800bps 的 UART 串口。上层协议为美的私有的 XYE 协议族。
+## 4. Protocol Layer Findings: XYE Protocol Family
 
-### 4.1 帧格式
+The demodulated baseband signal is simply a 4800 bps UART stream. The upper-layer protocol is Midea's proprietary XYE protocol family.
 
-[0]         : 0xAA (帧头)
+### 4.1 Frame Format
 
-[1]         : 协议族 (如 0x23 / 0x20 / 0x70 / 0x71 / 0x76)
+[0]         : 0xAA (frame header)
 
-[2..5]      : 源地址与目标地址 (4 字节)
+[1]         : Protocol family (e.g. 0x23 / 0x20 / 0x70 / 0x71 / 0x76)
 
-[6]         : 载荷长度 DataLen
+[2..5]      : Source address and destination address (4 bytes)
 
-[7..N-5]    : 业务数据段 (共 DataLen 字节)
+[6]         : Payload length (DataLen)
 
-[N-4..N-3]  : 2 字节 CRC16 校验位 (低字节在前，高字节在后)
+[7..N-5]    : Business data segment (DataLen bytes)
 
-[N-2..N-1]  : 0x55 0xFE (帧尾)
+[N-4..N-3]  : 2-byte CRC16 checksum (low byte first, high byte second)
 
-### 4.2 CRC 校验
+[N-2..N-1]  : 0x55 0xFE (frame tail)
 
-采用 CRC-16/MODBUS：
+### 4.2 CRC Checksum
 
-- 多项式：0xA001（反向）
-- 初始值：0xFFFF
-- 计算范围：从第 2 个字节开始（跳过 0xAA 帧头），到 CRC 校验位之前（共 len - 5 字节）
+CRC-16/MODBUS is used:
 
-### 4.3 内机状态帧解析
+- Polynomial: 0xA001 (reflected)
+- Initial value: 0xFFFF
+- Calculation range: from the 2nd byte (skipping the 0xAA frame header) to just before the checksum field (len − 5 bytes in total)
 
-匹配条件：
+### 4.3 Indoor Unit Status Frame Decoding
 
-- 帧头固定 0xAA
-- 帧尾固定 0x55 0xFE
-- 命令族 0x23（内机通信）
-- 源地址 0xF8（内机主板）
-- 功能码 0x65（内机运行参数/状态上报响应）
-- 载荷长度 pBuf[6] >= 10
+Match conditions:
 
-载荷字段解码：
+- Frame header fixed at 0xAA
+- Frame tail fixed at 0x55 0xFE
+- Command family 0x23 (indoor unit communication)
+- Source address 0xF8 (indoor unit main board)
+- Function code 0x65 (indoor unit operating parameters / status report response)
+- Payload length pBuf[6] >= 10
 
-| 字节 | 含义 | 解码方式 |
+Payload field decoding:
+
+| Byte | Meaning | Decoding |
 | :--- | :--- | :--- |
-| pData[0] | 模式/开关标志 | bit6 或 bit7 = 开机；低4位 = 模式（0自动 1送风 2制冷 3制热 6除湿） |
-| pData[1] | 风速 | 0x80=自动风；0x01~0x07=1~7档 |
-| pData[2] | 设定温度 | ((b2 & 0xFE) >> 1) - 40 |
-| pData[3] | 风速（辅助） | — |
-| pData[4] | 扫风/辅助状态 | — |
-| pData[9] | 室内温度 | b9 - 30 |
+| pData[0] | Mode / power flag | bit6 or bit7 = power on; low 4 bits = mode (0 auto, 1 fan, 2 cool, 3 heat, 6 dry) |
+| pData[1] | Fan speed | 0x80 = auto; 0x01–0x07 = levels 1–7 |
+| pData[2] | Set temperature | ((b2 & 0xFE) >> 1) − 40 |
+| pData[3] | Fan speed (auxiliary) | — |
+| pData[4] | Swing / auxiliary status | — |
+| pData[9] | Indoor temperature | b9 − 30 |
 
-模式标志位示例：
+Mode flag examples:
 
-- 0x00：关机（Bit 6 = 0）
-- 0x42：开机 + 制冷
-- 0x46：开机 + 除湿
-- 0x41：开机 + 送风
-- 0x43：开机 + 制热
-- 0xC0：开机 + 自动模式 + 实际处于制冷运行中
+- 0x00: power off (Bit 6 = 0)
+- 0x42: power on + cooling
+- 0x46: power on + dry (dehumidification)
+- 0x41: power on + fan only
+- 0x43: power on + heating
+- 0xC0: power on + auto mode, actually running in cooling
 
-### 4.4 软件架构
+### 4.4 Software Architecture
 
-串口接收：
+Serial reception:
 
-- 使用 SoftwareSerial 接收 4800bps 串口数据
-- 帧间超时 10ms 无新字节视为一帧接收完成
-- 接收缓冲区 256 字节
+- SoftwareSerial receives the 4800 bps UART data
+- A 10 ms inter-frame idle timeout marks a frame as complete
+- 256-byte receive buffer
 
-解析流程：
+Decoding flow:
 
-1. 整包合法性校验（帧头、帧尾、长度、CRC16）
-2. 匹配内机状态响应命令
-3. 提取载荷，对比上次数据，检测变化
-4. 解码开关、模式、设定温度、风速、室内温度
+1. Validate the whole frame (header, tail, length, CRC16)
+2. Match the indoor unit status response command
+3. Extract the payload and compare with the previous data to detect changes
+4. Decode power state, mode, set temperature, fan speed, and indoor temperature
 
-## 五、关键问题与解决过程
+## 5. Key Problems and Solutions
 
-### 5.1 桥堆供电影响通信
+### 5.1 Bridge Rectifier Power Supply Interferes with Communication
 
-现象：接上桥堆+DC-DC 后，面板和主板无法通信。
+Symptom: after connecting the bridge rectifier + DC-DC, the panel and the main board could no longer communicate.
 
-原因：DC-DC 输入电容对 200kHz 信号呈低阻抗，把通信信号短路了。
+Cause: the DC-DC input capacitor presents a low impedance to the 200 kHz signal, short-circuiting the communication signal.
 
-解决：在桥堆正极输出和 DC-DC 之间串联电感（470µH），隔离 200kHz 信号。
+Solution: insert a 470 µH inductor between the bridge rectifier positive output and the DC-DC input to isolate the 200 kHz signal.
 
-## 六、最终成果
+## 6. Final Results
 
-- 物理层参数完全确认（200kHz OOK，20V 总线，无极性）
-- 确认物理层本质是 4800bps UART 串口
-- 解调电路工作正常，比较器输出干净的 0/3.3V 基带脉冲
-- 供电和通信互不干扰
-- 成功逆向 XYE 协议族 帧格式和 CRC16 校验
-- 实现内机状态帧解析（开关、模式、设定温度、风速、室内温度）
+- Physical layer parameters fully confirmed (200 kHz OOK, 20 V bus, polarity-free)
+- Confirmed the physical layer is essentially a 4800 bps UART
+- Demodulation circuit works properly; the comparator outputs clean 0/3.3 V baseband pulses
+- Power supply and communication do not interfere with each other
+- Successfully reverse-engineered the XYE protocol family frame format and CRC16 checksum
+- Implemented indoor unit status frame decoding (power, mode, set temperature, fan speed, indoor temperature)
 
-## 七、项目意义
+## 7. Significance
 
-本项目完整走通了“物理层逆向 → 解调电路设计 → 协议逆向 → 软件实现 → 接入 HA”的全流程，为美的两线无极性总线的智能家居改造提供了完整可复用的方案。
+This project covers the complete workflow of "physical layer reverse engineering → demodulation circuit design → protocol reverse engineering → software implementation → Home Assistant integration", providing a fully reproducible solution for smart-home retrofit of Midea's two-wire polarity-free bus.
 
-核心难点在于无极性总线的小信号处理、包络检波的放电路径设计，以及供电与通信的隔离。最终确认物理层为 4800bps UART 后，协议逆向变得有章可循，XYE 协议族的帧格式和 CRC16 校验均已成功解析。
+The core challenges were small-signal handling on a polarity-free bus, the discharge path design of the envelope detector, and the isolation between power and communication. Once the physical layer was confirmed to be a 4800 bps UART, the protocol reverse engineering became systematic, and both the XYE protocol family frame format and the CRC16 checksum were successfully decoded.

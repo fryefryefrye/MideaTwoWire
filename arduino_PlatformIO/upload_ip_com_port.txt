@@ -1,0 +1,5 @@
+# Select ONE active line by uncommenting it.
+# Lines starting with #, ;, or // are ignored.
+
+COM3                  # USB serial upload example (edit to match your port)
+# 192.168.1.100         # OTA upload example (device IP address)
