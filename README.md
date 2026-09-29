@@ -8,6 +8,8 @@ The wall-mounted control panel of a Midea central air conditioner connects to th
 
 Project goal: tap into this bus with an ESP8266, decode Midea's proprietary protocol (XYE protocol family), and report the AC status.
 
+![alt text](img/image-4.png)
+
 ## 2. Physical Layer Findings
 
 Through oscilloscope capture and analysis, the physical layer parameters of the bus were finally confirmed:
@@ -55,7 +57,9 @@ Envelope detection:
 | C3 | 470 pF | Filter out the 200 kHz carrier |
 | R_14 | 200 kΩ | Capacitor discharge path |
 
-![alt text](img/image.png) The detected signal swings between 1.55 V and 1.27 V. So 1.41 V was chosen as the comparator reference voltage.
+![alt text](img/image.png) 
+
+The detected signal swings between 1.55 V and 1.27 V. So 1.41 V was chosen as the comparator reference voltage.
 
 Comparator:
 
@@ -65,7 +69,9 @@ Comparator:
 | R11 | 10 kΩ | Pull-up to 3.3 V |
 | R_12/R_13 | 4.7 kΩ / 3.6 kΩ | Voltage divider producing approx. 1.41 V reference |
 
-![alt text](img/image-1.png) The comparator outputs a clean 3.3 V-level signal.
+![alt text](img/image-1.png) 
+
+The comparator outputs a clean 3.3 V-level signal.
 
 Power supply path:
 
