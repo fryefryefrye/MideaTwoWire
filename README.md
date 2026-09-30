@@ -1,4 +1,4 @@
-# Midea X1/X2 Two-Wire Bus Protocol — Reverse Engineering
+# Midea X1/X2 Two-Wire Bus Protocol
 
 Reverse engineering of the polarity-free two-wire bus between the wired controller and the indoor unit of Midea central air conditioners.
 
