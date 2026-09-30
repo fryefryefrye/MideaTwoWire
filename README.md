@@ -4,6 +4,8 @@ Reverse engineering of the polarity-free two-wire bus between the wired controll
 
 [中文版 (Chinese version)](README.zh-CN.md)
 
+Related project: [midea-d1d2-protocol](https://github.com/manunited10/midea-d1d2-protocol)
+
 ## 1. Project Background
 
 The wall-mounted control panel of a Midea central air conditioner connects to the indoor unit main board through a single two-core wire. This wire carries both power supply and bidirectional communication, and is polarity-free (either wire can be swapped) — a typical private "power + communication" multiplexed bus.
