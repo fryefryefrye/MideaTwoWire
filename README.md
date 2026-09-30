@@ -1,10 +1,12 @@
-# Reverse Engineering of the Midea Two-Wire Polarity-Free Bus Communication
+# Midea X1/X2 Two-Wire Bus Protocol — Reverse Engineering
+
+Reverse engineering of the polarity-free two-wire bus between the wired controller and the indoor unit of Midea central air conditioners.
 
 [中文版 (Chinese version)](README.zh-CN.md)
 
 ## 1. Project Background
 
-The wall-mounted control panel of a Midea central air conditioner connects to the outdoor unit main board through a single two-core wire. This wire carries both power supply and bidirectional communication, and is polarity-free (either wire can be swapped) — a typical private "power + communication" multiplexed bus.
+The wall-mounted control panel of a Midea central air conditioner connects to the indoor unit main board through a single two-core wire. This wire carries both power supply and bidirectional communication, and is polarity-free (either wire can be swapped) — a typical private "power + communication" multiplexed bus.
 
 Project goal: tap into this bus with an ESP8266, decode Midea's proprietary protocol (XYE protocol family), and report the AC status.
 
