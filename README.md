@@ -4,7 +4,8 @@ Reverse engineering of the polarity-free two-wire bus between the wired controll
 
 [中文版 (Chinese version)](README.zh-CN.md)
 
-Related project: [midea-d1d2-protocol](https://github.com/manunited10/midea-d1d2-protocol)
+Related project: 
+[Midea D1/D2 Protocol](https://github.com/manunited10/midea-d1d2-protocol)
 
 ## 1. Project Background
 
