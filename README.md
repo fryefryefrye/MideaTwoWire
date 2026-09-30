@@ -186,3 +186,23 @@ Solution: insert a 470 µH inductor between the bridge rectifier positive output
 This project covers the complete workflow of "physical layer reverse engineering → demodulation circuit design → protocol reverse engineering → software implementation → Home Assistant integration", providing a fully reproducible solution for smart-home retrofit of Midea's two-wire polarity-free bus.
 
 The core challenges were small-signal handling on a polarity-free bus, the discharge path design of the envelope detector, and the isolation between power and communication. Once the physical layer was confirmed to be a 4800 bps UART, the protocol reverse engineering became systematic, and both the XYE protocol family frame format and the CRC16 checksum were successfully decoded.
+
+## 8. Off-the-Shelf Alternative: MAX22088
+
+If you would rather not build the discrete analog front end, there is an integrated option: the Analog Devices **MAX22088** (and the pin-compatible MAX22288), an HBS (Home Bus System) compatible transceiver. It puts the whole physical layer into one chip — most notably an **active inductor** that removes the bulky external AC-blocking inductor, plus an integrated 5 V linear regulator (up to 70 mA) to power the node, dynamic cable termination, and adjustable receiver hysteresis/thresholds. Up to 200 kbps, 24-pin 4 mm × 4 mm TQFN, −40 °C to +105 °C.
+
+Why this project still uses a discrete front end:
+
+| Aspect | MAX22088 | Discrete front end (this project) |
+| :--- | :--- | :--- |
+| Chip price | ~$3.63 at 1ku; $7.94–$14.28 for single units | — |
+| Evaluation kit | $104–$183, two boards (master + remote), ±1 kV surge tested | — |
+| Board-level cost | the transceiver alone dominates the BOM | a few passive components only |
+| Assembly | 4 mm × 4 mm TQFN, needs hot air / reflow | SOIC / through-hole, hand-solderable |
+| Bring-up | Low: the front end is standardized | Higher: needs a scope and stage-by-stage analog debugging |
+
+Notes:
+
+- For a quick physical-layer validation (checking whether the Midea X1/X2 bus really works with this transceiver), the MAX22088 EVKIT is the lowest-risk route — schematics and PCB layout are public.
+- Official resources: driver plus a `two_nodes` master/slave example — <https://github.com/analogdevicesinc/max22x88-driver>; application note *How to Transmit UART Packets Using a Home Bus System (HBS) Compatible Transceiver* — <https://www.analog.com/en/design-notes/how-to-transmit-uart-packets-using-a-home-bus-system-hbs-compatible-transceiver.html>
+- Bottom line: the MAX22088 standardizes the "dirty work" of the physical layer and is a great reference/validation starting point, but it is not a chip optimized for low-cost DIY. For a finished build, the discrete approach described above is usually the better trade-off.
