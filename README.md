@@ -136,7 +136,7 @@ Payload field decoding:
 | pData[2] | Set temperature | ((b2 & 0xFE) >> 1) − 40 |
 | pData[3] | Fan speed (auxiliary) | — |
 | pData[4] | Swing / auxiliary status | — |
-| pData[9] | Indoor temperature | b9 − 30 |
+| pData[9] | — | Not the room temperature; see 4.4 (the old "b9 − 30" formula was unverified) |
 
 Mode flag examples:
 
@@ -147,7 +147,27 @@ Mode flag examples:
 - 0x43: power on + heating
 - 0xC0: power on + auto mode, actually running in cooling
 
-### 4.4 Software Architecture
+### 4.4 Indoor Unit Room Temperature Frame Decoding
+
+The room temperature is **not** carried by the status frame above; the indoor unit reports it in the `AA 20 F8 ...` frame.
+
+Match conditions:
+
+- Frame header fixed at 0xAA, frame tail fixed at 0x55 0xFE
+- Command family 0x20
+- Source address 0xF8 (indoor unit main board)
+- Payload length pBuf[6] >= 9
+
+Decoding:
+
+| Field | Meaning | Decoding |
+| :--- | :--- | :--- |
+| pBuf[12], pBuf[13] | Room temperature | signed 16-bit little-endian, in **0.1 °C units** (235 = 23.5 °C) |
+| range check | — | only 0 < raw < 600 (0.1–59.9 °C) is accepted; anything else is "no data" (0) |
+
+The value is printed whenever it changes, e.g. `TW Room: 23.5C (raw=235, 0.1C)`.
+
+### 4.5 Software Architecture
 
 Serial reception:
 
@@ -158,9 +178,10 @@ Serial reception:
 Decoding flow:
 
 1. Validate the whole frame (header, tail, length, CRC16)
-2. Match the indoor unit status response command
-3. Extract the payload and compare with the previous data to detect changes
-4. Decode power state, mode, set temperature, fan speed, and indoor temperature
+2. Decode the room temperature from the `AA 20 F8 ...` frame, and print it when it changes
+3. Match the indoor unit status response command (`AA 23 F8 ... 65 ...`)
+4. Extract the payload and compare with the previous data to detect changes
+5. Decode power state, mode, set temperature, and fan speed
 
 ## 5. Key Problems and Solutions
 
@@ -179,7 +200,8 @@ Solution: insert a 470 µH inductor between the bridge rectifier positive output
 - Demodulation circuit works properly; the comparator outputs clean 0/3.3 V baseband pulses
 - Power supply and communication do not interfere with each other
 - Successfully reverse-engineered the XYE protocol family frame format and CRC16 checksum
-- Implemented indoor unit status frame decoding (power, mode, set temperature, fan speed, indoor temperature)
+- Implemented indoor unit status frame decoding (power, mode, set temperature, fan speed)
+- Implemented room temperature decoding from the `AA 20 F8 ...` frame (0.1 °C resolution)
 
 ## 7. Significance
 

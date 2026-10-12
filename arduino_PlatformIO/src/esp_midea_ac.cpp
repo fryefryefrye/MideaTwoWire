@@ -21,6 +21,10 @@
 
 SoftwareSerial *p_swSer_TwoWire = nullptr;
 
+// Latest room temperature reported by the indoor unit (AA 20 F8 ...) frame,
+// in 0.1 C units; 0 means "no valid reading".
+static unsigned long RoomTemperature = 0;
+
 void TwoWireTask();
 void ParseTwoWireAcPacket(unsigned char *pBuf, unsigned int len);
 
@@ -162,7 +166,7 @@ void ParseTwoWireAcPacket(unsigned char *pBuf, unsigned int len)
 	unsigned char b2 = pData[2]; // Set temperature
 	unsigned char b3 = pData[3]; // Fan speed
 	unsigned char b4 = pData[4]; // Swing / auxiliary status
-	unsigned char b9 = pData[9]; // Indoor temperature (0x35 = 53 -> 53-30 = 23 C)
+	// Indoor temperature is NOT in this frame, see the 0x20 frame handling in TwoWireTask()
 
 // 0x00: power off (Bit 6 = 0)
 // 0x42: power on + set to cooling mode
@@ -209,19 +213,17 @@ void ParseTwoWireAcPacket(unsigned char *pBuf, unsigned int len)
 		sprintf(fanStr, "Fan0x%02X", b1);
 	}
 
-	// Indoor room temperature: Midea standard (b9 - 30)
-	int roomTemp = (int)b9 - 30;
-
 	// Do not print again if nothing changed
 	if (changed)
 	{
-		// Print the full decoded result
-		Serial.printf("TW AC: [%s] [%s] [Set:%dC] [%s] [Room:%dC]\r\n"
+		// Print the full decoded result.
+		// The room temperature is not decoded from this frame (the old
+		// "pData[9] - 30" formula was unverified) - see TwoWireTask().
+		Serial.printf("TW AC: [%s] [%s] [Set:%dC] [%s]\r\n"
 			, isPowerOn ? "ON" : "OFF"
 			, modeStr
 			, (int)setTemp
 			, fanStr
-			, roomTemp
 		);
 	}
 }
@@ -264,6 +266,29 @@ void TwoWireTask()
 		}
 		PrintLen += sprintf(PrintBuf + PrintLen, "\r\n");
 		Serial.print(PrintBuf);
+
+		// Indoor room temperature frame (AA 20 F8 ...): pBuf[12] and pBuf[13]
+		// carry a signed 16-bit little-endian value in 0.1 C units (235 = 23.5 C).
+		// Only 0 < raw < 600 is accepted, anything else means "no data" (0).
+		if (VerifyTwoWirePacket(TwRxBuf, TwRxLen)
+			&& TwRxBuf[1] == 0x20 && TwRxBuf[2] == 0xF8 && TwRxBuf[6] >= 9)
+		{
+			int roomTemperatureRaw = (int)TwRxBuf[12] | ((int)TwRxBuf[13] << 8);
+			if (roomTemperatureRaw >= 0x8000)
+			{
+				roomTemperatureRaw -= 0x10000;
+			}
+			unsigned long roomTemperature = (roomTemperatureRaw > 0 && roomTemperatureRaw < 600)
+				? (unsigned long)roomTemperatureRaw : 0;
+			if (RoomTemperature != roomTemperature)
+			{
+				RoomTemperature = roomTemperature;
+				Serial.printf("TW Room: %d.%dC (raw=%d, 0.1C)\r\n"
+					, (int)(roomTemperature / 10)
+					, (int)(roomTemperature % 10)
+					, roomTemperatureRaw);
+			}
+		}
 
 		// Parse and print the AC status
 		ParseTwoWireAcPacket(TwRxBuf, TwRxLen);
