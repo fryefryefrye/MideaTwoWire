@@ -1,6 +1,12 @@
-﻿// Two-wire bus AC status parser (simplified): parse the two-wire bus signal and print
-// the decoded AC status over the hardware serial port. All other features (WiFi/UDP
-// reporting, OTA, NTP time, 38 kHz IR TX/RX, sensor libraries) have been removed.
+﻿// Example 03 - Two-wire bus AC status parser (X1/X2, this project)
+//
+// Parses the polarity-free two-wire bus signal (demodulated 4800 baud UART,
+// see the analog front end in the main README) and prints the decoded AC
+// status over the hardware serial port. All other features (WiFi/UDP
+// reporting, OTA, NTP time, 38 kHz IR TX/RX, sensor libraries) have been
+// removed.
+//
+// Wiring: comparator output (demodulated bus UART) -> D6 (GPIO12)
 //
 // D0 = GPIO16; no INPUT_PULLUP, use external pull-up
 // D1 = GPIO5;

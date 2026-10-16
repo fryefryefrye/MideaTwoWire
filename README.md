@@ -260,3 +260,15 @@ For the new polarity-free two-wire units:
 ![2-wire controller with adapter board](img/controller-2wire.jpg)
 
 The two boards follow the same philosophy: status monitoring goes over the wiring (IR signal monitoring on the 4-wire units, bus communication demodulation on the 2-wire units), control always goes through the IR LED, and both are built as hidden boards that fit inside the controller's gap.
+
+## 10. Example Code
+
+Minimal, self-contained Arduino sketches (ESP8266) live in [`examples/`](examples/). Each folder is a plain Arduino project (`.ino` in the folder root) that opens directly in the Arduino IDE and also builds with PlatformIO.
+
+| Example | Bus | What it does |
+| :--- | :--- | :--- |
+| [01_ir38k_decode](examples/01_ir38k_decode/) | 4-wire (38 kHz IR signal) | Decodes the 48-bit Midea IR control frame sent by the wired controller / remote: power, mode, set temperature, fan speed |
+| [02_ir_send](examples/02_ir_send/) | IR output (both generations) | Sends AC control commands with an IR LED (the same 48-bit frame format) |
+| [03_two_wire_status](examples/03_two_wire_status/) | 2-wire polarity-free X1/X2 bus (this project) | Decodes the XYE protocol frames on the two-wire bus: status, set temperature, fan speed and room temperature |
+
+All three use the same pin convention (`D6` = signal input, `D2` = IR LED output), so they can be combined on one board — which is exactly what the deployed adapter boards do.
