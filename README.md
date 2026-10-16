@@ -228,3 +228,35 @@ Notes:
 - For a quick physical-layer validation (checking whether the Midea X1/X2 bus really works with this transceiver), the MAX22088 EVKIT is the lowest-risk route — schematics and PCB layout are public.
 - Official resources: driver plus a `two_nodes` master/slave example — <https://github.com/analogdevicesinc/max22x88-driver>; application note *How to Transmit UART Packets Using a Home Bus System (HBS) Compatible Transceiver* — <https://www.analog.com/en/design-notes/how-to-transmit-uart-packets-using-a-home-bus-system-hbs-compatible-transceiver.html>
 - Bottom line: the MAX22088 standardizes the "dirty work" of the physical layer and is a great reference/validation starting point, but it is not a chip optimized for low-cost DIY. For a finished build, the discrete approach described above is usually the better trade-off.
+
+## 9. Field Deployment: Adapter Boards Hidden Inside the Controller
+
+### 9.1 Background: Two Generations of Controllers (4-Wire and 2-Wire)
+
+Older Midea controllers are **4-wire**: the control board sends a **38 kHz infrared control signal** to the indoor unit through two of the wires (essentially an IR remote link stretched out to the indoor unit), and the control board itself also receives the handheld remote's signal.
+
+Newer Midea units have all moved to the **polarity-free two-wire version** (the X1/X2 bus covered by this project): power supply and bidirectional communication share the same two wires.
+
+### 9.2 4-Wire Adapter Board
+
+For the older 4-wire units, the ESP8266 adapter board:
+
+- Monitors the upstream 38 kHz IR control signal (controller → indoor unit)
+- Uses an on-board IR LED to send control commands to the AC
+- Slips into the gap of the controller enclosure for a hidden installation
+- **Deployed on nearly 100 units**
+
+![4-wire controller with adapter board](img/controller-4wire.jpg)
+
+### 9.3 2-Wire Adapter Board (This Project)
+
+For the new polarity-free two-wire units:
+
+- **Powered from the control line**: bridge rectifier + isolating inductor + DC-DC (see Section 3)
+- **Demodulates bidirectional communication**: envelope detector + comparator recover the 4800 bps UART; the XYE protocol frames yield the operating status (power, mode, set temperature, fan speed, room temperature)
+- **Control is still sent via the IR LED**
+- Also slips into the gap of the controller enclosure — **deployment has just started**
+
+![2-wire controller with adapter board](img/controller-2wire.jpg)
+
+The two boards follow the same philosophy: status monitoring goes over the wiring (IR signal monitoring on the 4-wire units, bus communication demodulation on the 2-wire units), control always goes through the IR LED, and both are built as hidden boards that fit inside the controller's gap.
