@@ -3,20 +3,36 @@
 // Older Midea wired controllers are 4-wire: the control board sends a 38 kHz
 // modulated infrared control signal to the indoor unit over the wiring, and
 // the controller itself also receives the handheld remote. This sketch
-// passively taps that signal and decodes the 48-bit Midea infrared frame,
-// so the commanded AC state (power / mode / set temperature / fan speed)
-// can be monitored.
+// passively taps the RAW drive signal of that infrared link (the signal that
+// still carries the 38 kHz carrier) and decodes the 48-bit Midea infrared
+// frame, so the commanded AC state (power / mode / set temperature / fan
+// speed) can be monitored.
+//
+// IMPORTANT - what the input signal is:
+//   IR_RX_PIN takes the raw IR emitter drive signal, i.e. the electrical
+//   signal that feeds the IR LED / travels down the control wire, with the
+//   38 kHz carrier still on it: a "mark" is a burst of 38 kHz square wave,
+//   a "space" is the idle DC level between bursts.
+//   Do NOT feed this pin from a demodulating IR receiver module
+//   (TSOP1838 / VS1838B ...). Such a module strips the carrier and outputs a
+//   clean baseband mark/space waveform, which this decoder is not written for.
+//   Here the carrier is removed in software instead: inside a burst the pin
+//   keeps toggling every ~26 us, so any edge interval shorter than 100 us is
+//   treated as "still inside the current mark" (its start is latched once);
+//   when a real gap arrives, the time elapsed since the burst start is the
+//   mark length and the gap is the space length. That is a software envelope
+//   detector.
 //
 // Hardware:
 //   - ESP8266 (NodeMCU)
-//   - a demodulating 38 kHz IR receiver (e.g. TSOP1838 / VS1838B) whose input
-//     is the IR signal line tapped from the controller wiring
+//   - the carrier-carrying IR signal line tapped from the controller wiring
+//     (active low: a burst pulls the line low, idle is pulled high)
 //
 // Wiring:
-//   IR receiver OUT  ->  D6 (GPIO12), input with pull-up, active low
+//   IR signal line   ->  D6 (GPIO12), input with pull-up, active low
 //   Serial monitor   ->  115200 baud
 //
-// Signal timing (measured at the demodulated receiver output):
+// Signal timing (envelope of the drive signal):
 //   header  : mark > 3.8 ms + space > 3.8 ms
 //   bit "1" : space > 1.0 ms  (1.68 ms)
 //   bit "0" : space < 1.0 ms  (0.56 ms)
@@ -32,7 +48,7 @@
 //
 // See Example 02 for the matching sender.
 
-#define IR_RX_PIN D6 // 38 kHz IR signal input (demodulated IR receiver output)
+#define IR_RX_PIN D6 // raw IR drive signal input (38 kHz carrier present)
 
 // ---------------------------------------------------------------------------
 // Frame capture (interrupt driven)
@@ -57,8 +73,12 @@ static volatile bool Frame1Captured = false;
 
 void ResetIrCapture();
 
-// 38 kHz infrared signal decode interrupt (RISING edges of the demodulated
-// receiver output: a rising edge ends each mark)
+// 38 kHz infrared drive signal decode interrupt. The input still carries the
+// carrier, so RISING edges come in two flavours: (a) the fast ~26 us edges of
+// the 38 kHz burst itself, and (b) the first edge of a new burst, i.e. the one
+// that follows a real gap. (b) closes the previous mark and delivers its
+// space; (a) is filtered out below as a "glitch" (DiffTime < 100) and just
+// latches the start time of the burst currently running.
 ICACHE_RAM_ATTR void IrDecodeIsr()
 {
 	unsigned long ThisTime;
@@ -80,7 +100,7 @@ ICACHE_RAM_ATTR void IrDecodeIsr()
 
 			if (DiffTime < 100)
 			{
-				// Very short interval: glitch, restart the mark measurement
+				// Very short interval: still inside the same 38 kHz burst
 				if (IsLastLong)
 				{
 					PulseStartTime = ThisTime;
@@ -285,7 +305,7 @@ void setup()
 	Serial.begin(115200);
 	Serial.println("Midea 38 kHz IR decoder start");
 
-	// IR signal input: demodulated IR receiver output, active low
+	// IR signal input: raw IR drive signal (38 kHz carrier present), active low
 	pinMode(IR_RX_PIN, INPUT_PULLUP);
 	attachInterrupt(digitalPinToInterrupt(IR_RX_PIN), IrDecodeIsr, RISING);
 

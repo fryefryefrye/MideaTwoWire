@@ -241,7 +241,7 @@ Newer Midea units have all moved to the **polarity-free two-wire version** (the 
 
 For the older 4-wire units, the ESP8266 adapter board:
 
-- Monitors the upstream 38 kHz IR control signal (controller → indoor unit)
+- Monitors the upstream 38 kHz IR control signal (controller → indoor unit) by tapping the **raw IR drive signal with the carrier still on it** — the 38 kHz is stripped in software (software envelope detector)
 - Uses an on-board IR LED to send control commands to the AC
 - Slips into the gap of the controller enclosure for a hidden installation
 - **Deployed on nearly 100 units**
@@ -267,7 +267,7 @@ Minimal, self-contained Arduino sketches (ESP8266) live in [`examples/`](example
 
 | Example | Bus | What it does |
 | :--- | :--- | :--- |
-| [01_ir38k_decode](examples/01_ir38k_decode/) | 4-wire (38 kHz IR signal) | Decodes the 48-bit Midea IR control frame sent by the wired controller / remote: power, mode, set temperature, fan speed |
+| [01_ir38k_decode](examples/01_ir38k_decode/) | 4-wire (38 kHz IR signal) | Taps the raw IR drive signal (38 kHz carrier still present) and decodes the 48-bit Midea control frame the wired controller sends to the indoor unit: power, mode, set temperature, fan speed |
 | [02_ir_send](examples/02_ir_send/) | IR output (both generations) | Sends AC control commands with an IR LED (the same 48-bit frame format) |
 | [03_two_wire_status](examples/03_two_wire_status/) | 2-wire polarity-free X1/X2 bus (this project) | Decodes the XYE protocol frames on the two-wire bus: status, set temperature, fan speed and room temperature |
 
